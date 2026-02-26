@@ -22,3 +22,8 @@ inline std::string upper_copy(std::string s) {
     return s;
 }
 
+inline std::string upper_trim_copy(std::string s) {
+    return upper_copy(trim_copy(std::move(s)));
+}
+
+} // namespace am::str
