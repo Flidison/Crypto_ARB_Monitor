@@ -29,3 +29,19 @@ std::optional<std::string> ConfigManager::get_string(const std::string& key) con
     return it->second;
 }
 
+std::optional<double> ConfigManager::get_double(const std::string& key) const {
+    auto s = get_string(key);
+    if (!s) return std::nullopt;
+    try { return std::stod(*s); }
+    catch (...) { throw ConfigError("Bad double for key: " + key); }
+}
+
+std::optional<bool> ConfigManager::get_bool(const std::string& key) const {
+    auto s = get_string(key);
+    if (!s) return std::nullopt;
+    if (*s == "true"  || *s == "1") return true;
+    if (*s == "false" || *s == "0") return false;
+    throw ConfigError("Bad bool for key: " + key);
+}
+
+} // namespace am
