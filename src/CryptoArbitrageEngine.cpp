@@ -89,3 +89,45 @@ std::vector<CryptoQuote> CryptoArbitrageEngine::load_quotes_csv(
     return quotes;
 }
 
+std::vector<CryptoOpportunity> CryptoArbitrageEngine::find_opportunities(
+    const std::vector<CryptoQuote>& quotes,
+    const CryptoMonitorConfig& cfg) const
+{
+    std::vector<CryptoOpportunity> out;
+    for (size_t i = 0; i < quotes.size(); ++i) {
+        const auto& buy = quotes[i];
+        if (!cfg.symbol_filter.empty() && buy.symbol != cfg.symbol_filter)
+            continue;
+        for (size_t j = 0; j < quotes.size(); ++j) {
+            if (i == j) continue;
+            const auto& sell = quotes[j];
+            if (sell.symbol   != buy.symbol)  continue;
+            if (sell.exchange == buy.exchange) continue;
+
+            const double buy_cost  = buy.ask  * (1.0 + buy.fee_bps  / 10000.0);
+            const double sell_gain = sell.bid  * (1.0 - sell.fee_bps / 10000.0);
+            const double net       = sell_gain - buy_cost;
+            if (net <= cfg.min_net_spread) continue;
+
+            const double net_pct = net / buy_cost;
+            if (net_pct <= cfg.min_net_pct) continue;
+
+            CryptoOpportunity o;
+            o.symbol        = buy.symbol;
+            o.buy_exchange  = buy.exchange;
+            o.sell_exchange = sell.exchange;
+            o.buy_ask       = buy.ask;
+            o.sell_bid      = sell.bid;
+            o.gross_spread  = sell.bid - buy.ask;
+            o.net_spread    = net;
+            o.net_pct       = net_pct;
+            out.push_back(std::move(o));
+        }
+    }
+    std::sort(out.begin(), out.end(),
+        [](const CryptoOpportunity& a, const CryptoOpportunity& b){
+            return a.net_spread > b.net_spread;
+        });
+    return out;
+}
+
