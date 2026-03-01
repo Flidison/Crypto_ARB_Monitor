@@ -1,8 +1,13 @@
 #include "config/ConfigManager.h"
+#include "crypto/CryptoArbitrageEngine.h"
 #include "exceptions/Exceptions.h"
 
+#include <chrono>
 #include <filesystem>
+#include <iomanip>
 #include <iostream>
+#include <memory>
+#include <sstream>
 #include <string>
 
 namespace fs = std::filesystem;
@@ -10,10 +15,9 @@ namespace fs = std::filesystem;
 static void print_usage() {
     std::cerr
         << "Usage: arbitrage_monitor <command> [options]\n"
-        << "Commands:\n"
-        << "  run    [--config <path>]  Run once and write report\n"
-        << "  watch  [--config <path>]  Run continuously\n"
-        << "  config [--config <path>]  Print effective configuration\n";
+        << "  run    [--config <path>]  Run once\n"
+        << "  watch  [--config <path>]  Run in loop\n"
+        << "  config [--config <path>]  Print config\n";
 }
 
 static std::string resolve_from_config(const std::string& cfg_path,
@@ -22,23 +26,41 @@ static std::string resolve_from_config(const std::string& cfg_path,
     return (fs::path(cfg_path).parent_path() / p).string();
 }
 
-static void print_effective_config(const am::IConfigManager& cfg,
-                                   const std::string& cfg_path) {
-    auto s = [&](const std::string& k){
-        auto v = cfg.get_string(k); return v ? *v : std::string("<unset>");
+static std::string utc_now_iso8601() {
+    auto now = std::chrono::system_clock::now();
+    std::time_t t = std::chrono::system_clock::to_time_t(now);
+    std::tm utc{}; gmtime_r(&t, &utc);
+    std::ostringstream oss;
+    oss << std::put_time(&utc, "%Y-%m-%dT%H:%M:%SZ");
+    return oss.str();
+}
+
+struct EffectiveConfig {
+    std::string crypto_quotes_csv;
+    std::string crypto_output_csv;
+    bool        online_crypto_enabled  = false;
+    int         watch_interval_sec     = 5;
+    double      crypto_default_fee_bps = 10.0;
+};
+
+static EffectiveConfig load_effective(const am::IConfigManager& cfg,
+                                      const std::string& cfg_path) {
+    EffectiveConfig ec;
+    auto s = [&](const std::string& k, const std::string& d){
+        auto v = cfg.get_string(k); return v ? *v : d;
     };
-    std::cout
-        << "crypto_quotes_csv="
-        << resolve_from_config(cfg_path, s("crypto_quotes_csv")) << "\n"
-        << "crypto_output_csv="
-        << resolve_from_config(cfg_path, s("crypto_output_csv")) << "\n"
-        << "online_crypto_enabled=" << s("online_crypto_enabled") << "\n"
-        << "watch_interval_sec="    << s("watch_interval_sec")    << "\n";
+    ec.crypto_quotes_csv = resolve_from_config(cfg_path,
+        s("crypto_quotes_csv", "fixture_crypto_quotes.csv"));
+    ec.crypto_output_csv = resolve_from_config(cfg_path,
+        s("crypto_output_csv", "crypto_opportunities.csv"));
+    if (auto v = cfg.get_bool("online_crypto_enabled"))    ec.online_crypto_enabled  = *v;
+    if (auto v = cfg.get_double("watch_interval_sec"))     ec.watch_interval_sec     = (int)*v;
+    if (auto v = cfg.get_double("crypto_default_fee_bps")) ec.crypto_default_fee_bps = *v;
+    return ec;
 }
 
 int main(int argc, char* argv[]) {
     const std::string cmd = (argc >= 2) ? argv[1] : "run";
-
     if (cmd != "run" && cmd != "watch" && cmd != "config") {
         print_usage(); return 1;
     }
@@ -48,13 +70,30 @@ int main(int argc, char* argv[]) {
         if (std::string(argv[i]) == "--config") config_path = argv[i + 1];
 
     try {
-        am::ConfigManager cfg(config_path);
-        cfg.load();
+        am::ConfigManager cfg_mgr(config_path);
+        cfg_mgr.load();
+        const auto ec = load_effective(cfg_mgr, config_path);
+
         if (cmd == "config") {
-            print_effective_config(cfg, config_path);
+            std::cout
+                << "crypto_quotes_csv=" << ec.crypto_quotes_csv << "\n"
+                << "crypto_output_csv=" << ec.crypto_output_csv << "\n"
+                << "online_crypto_enabled="
+                << (ec.online_crypto_enabled ? "true" : "false") << "\n"
+                << "watch_interval_sec=" << ec.watch_interval_sec << "\n";
             return 0;
         }
-        std::cout << "arbitrage_monitor " << cmd << "\n";
+
+        am::CryptoArbitrageEngine engine;
+        am::CryptoMonitorConfig ccfg;
+        const auto quotes = engine.load_quotes_csv(
+            ec.crypto_quotes_csv, {}, ec.crypto_default_fee_bps);
+        const auto opps   = engine.find_opportunities(quotes, ccfg);
+        engine.write_opportunities_csv(
+            ec.crypto_output_csv, utc_now_iso8601(), opps);
+        std::cout << "Wrote " << opps.size()
+                  << " opportunities -> " << ec.crypto_output_csv << "\n";
+
     } catch (const am::AmException& e) {
         std::cerr << "Error: " << e.what() << "\n"; return 1;
     }
