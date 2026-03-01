@@ -5,3 +5,15 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(AM_BUILD_TESTS "Build tests" ON)
+
+# ── Core library ──────────────────────────────────────────────────────────────
+add_library(am_core
+    src/ConfigManager.cpp
+    src/CryptoArbitrageEngine.cpp
+)
+target_include_directories(am_core PUBLIC include)
+target_compile_features(am_core PUBLIC cxx_std_23)
+
+# ── CLI executable ────────────────────────────────────────────────────────────
+add_executable(arbitrage_monitor src/main.cpp)
+target_link_libraries(arbitrage_monitor PRIVATE am_core)
