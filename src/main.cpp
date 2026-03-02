@@ -1,5 +1,6 @@
 #include "config/ConfigManager.h"
 #include "crypto/CryptoArbitrageEngine.h"
+#include "online/MarketDataConnectors.h"
 #include "exceptions/Exceptions.h"
 
 #include <chrono>
@@ -39,6 +40,7 @@ struct EffectiveConfig {
     std::string crypto_quotes_csv;
     std::string crypto_output_csv;
     bool        online_crypto_enabled  = false;
+    std::string crypto_online_source   = "DIRECT";
     int         watch_interval_sec     = 5;
     double      crypto_default_fee_bps = 10.0;
 };
@@ -49,10 +51,11 @@ static EffectiveConfig load_effective(const am::IConfigManager& cfg,
     auto s = [&](const std::string& k, const std::string& d){
         auto v = cfg.get_string(k); return v ? *v : d;
     };
-    ec.crypto_quotes_csv = resolve_from_config(cfg_path,
-        s("crypto_quotes_csv", "fixture_crypto_quotes.csv"));
-    ec.crypto_output_csv = resolve_from_config(cfg_path,
-        s("crypto_output_csv", "crypto_opportunities.csv"));
+    ec.crypto_quotes_csv    = resolve_from_config(cfg_path,
+        s("crypto_quotes_csv","fixture_crypto_quotes.csv"));
+    ec.crypto_output_csv    = resolve_from_config(cfg_path,
+        s("crypto_output_csv","crypto_opportunities.csv"));
+    ec.crypto_online_source  = s("crypto_online_source","DIRECT");
     if (auto v = cfg.get_bool("online_crypto_enabled"))    ec.online_crypto_enabled  = *v;
     if (auto v = cfg.get_double("watch_interval_sec"))     ec.watch_interval_sec     = (int)*v;
     if (auto v = cfg.get_double("crypto_default_fee_bps")) ec.crypto_default_fee_bps = *v;
@@ -76,19 +79,28 @@ int main(int argc, char* argv[]) {
 
         if (cmd == "config") {
             std::cout
-                << "crypto_quotes_csv=" << ec.crypto_quotes_csv << "\n"
-                << "crypto_output_csv=" << ec.crypto_output_csv << "\n"
+                << "crypto_quotes_csv="      << ec.crypto_quotes_csv   << "\n"
+                << "crypto_output_csv="      << ec.crypto_output_csv   << "\n"
                 << "online_crypto_enabled="
-                << (ec.online_crypto_enabled ? "true" : "false") << "\n"
-                << "watch_interval_sec=" << ec.watch_interval_sec << "\n";
+                << (ec.online_crypto_enabled ? "true" : "false")        << "\n"
+                << "crypto_online_source="   << ec.crypto_online_source << "\n"
+                << "watch_interval_sec="     << ec.watch_interval_sec   << "\n";
             return 0;
         }
 
         am::CryptoArbitrageEngine engine;
         am::CryptoMonitorConfig ccfg;
-        const auto quotes = engine.load_quotes_csv(
-            ec.crypto_quotes_csv, {}, ec.crypto_default_fee_bps);
-        const auto opps   = engine.find_opportunities(quotes, ccfg);
+        std::vector<am::CryptoQuote> quotes;
+
+        if (ec.online_crypto_enabled) {
+            am::MarketDataConnectors conn;
+            quotes = conn.fetch_btcusd_quotes({}, ec.crypto_default_fee_bps);
+        } else {
+            quotes = engine.load_quotes_csv(
+                ec.crypto_quotes_csv, {}, ec.crypto_default_fee_bps);
+        }
+
+        const auto opps = engine.find_opportunities(quotes, ccfg);
         engine.write_opportunities_csv(
             ec.crypto_output_csv, utc_now_iso8601(), opps);
         std::cout << "Wrote " << opps.size()
