@@ -64,3 +64,47 @@ MarketDataConnectors::parse_bitstamp_ticker(const std::string& json) {
     return std::make_pair(*bid, *ask);
 }
 
+std::string MarketDataConnectors::curl_http_get(const std::string& url) {
+    const std::string cmd =
+        "curl -sS -L --max-time 10 --user-agent 'ArbitrageMonitor/1.0' '"
+        + url + "' 2>&1";
+    FILE* pipe = popen(cmd.c_str(), "r");
+    if (!pipe) throw CsvError("popen failed: " + url);
+    std::string r; char buf[4096];
+    while (fgets(buf, sizeof(buf), pipe)) r += buf;
+    pclose(pipe); return r;
+}
+
+std::string MarketDataConnectors::http_get(const std::string& url) const {
+    return curl_http_get(url);
+}
+
+std::vector<CryptoQuote> MarketDataConnectors::fetch_btcusd_quotes(
+    const std::unordered_map<std::string, double>& per_exchange_fee_bps,
+    double default_fee_bps) const
+{
+    auto fee = [&](const std::string& ex) {
+        auto it = per_exchange_fee_bps.find(ex);
+        return it != per_exchange_fee_bps.end() ? it->second : default_fee_bps;
+    };
+    std::vector<CryptoQuote> out;
+    try {
+        auto j = http_get("https://api.binance.com/api/v3/ticker/bookTicker?symbol=BTCUSDT");
+        if (auto r = parse_binance_book_ticker(j))
+            out.push_back({"BINANCE","BTCUSD",r->first,r->second,fee("BINANCE")});
+    } catch (...) {}
+    try {
+        auto j = http_get("https://api.kraken.com/0/public/Ticker?pair=XBTUSD");
+        if (auto r = parse_kraken_ticker(j))
+            out.push_back({"KRAKEN","BTCUSD",r->first,r->second,fee("KRAKEN")});
+    } catch (...) {}
+    try {
+        auto j = http_get("https://www.bitstamp.net/api/v2/ticker/btcusd/");
+        if (auto r = parse_bitstamp_ticker(j))
+            out.push_back({"BITSTAMP","BTCUSD",r->first,r->second,fee("BITSTAMP")});
+    } catch (...) {}
+    if (out.empty()) throw CsvError("All direct exchange fetches failed");
+    return out;
+}
+
+} // namespace am

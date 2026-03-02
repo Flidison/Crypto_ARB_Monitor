@@ -10,6 +10,7 @@ option(AM_BUILD_TESTS "Build tests" ON)
 add_library(am_core
     src/ConfigManager.cpp
     src/CryptoArbitrageEngine.cpp
+    src/MarketDataConnectors.cpp
 )
 target_include_directories(am_core PUBLIC include)
 target_compile_features(am_core PUBLIC cxx_std_23)
