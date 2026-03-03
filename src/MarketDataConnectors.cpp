@@ -150,3 +150,91 @@ std::vector<CryptoQuote> MarketDataConnectors::build_tradingview_quotes(
     return out;
 }
 
+std::string MarketDataConnectors::curl_http_get(const std::string& url) {
+    const std::string cmd =
+        "curl -sS -L --max-time 10 --user-agent 'ArbitrageMonitor/1.0' '"
+        + url + "' 2>&1";
+    FILE* pipe = popen(cmd.c_str(), "r");
+    if (!pipe) throw CsvError("popen failed: " + url);
+    std::string r; char buf[4096];
+    while (fgets(buf, sizeof(buf), pipe)) r += buf;
+    pclose(pipe); return r;
+}
+
+std::string MarketDataConnectors::curl_http_post(const std::string& url,
+                                                  const std::string& body) {
+    const std::string cmd =
+        "curl -sS -L --max-time 15 -X POST "
+        "-H 'Content-Type: application/json' "
+        "--user-agent 'ArbitrageMonitor/1.0' "
+        "--data '" + body + "' '" + url + "' 2>&1";
+    FILE* pipe = popen(cmd.c_str(), "r");
+    if (!pipe) throw CsvError("popen POST failed: " + url);
+    std::string r; char buf[4096];
+    while (fgets(buf, sizeof(buf), pipe)) r += buf;
+    pclose(pipe); return r;
+}
+
+std::string MarketDataConnectors::http_get(const std::string& url) const {
+    return curl_http_get(url);
+}
+
+std::string MarketDataConnectors::http_post(const std::string& url,
+                                             const std::string& body) const {
+    return curl_http_post(url, body);
+}
+
+std::vector<CryptoQuote> MarketDataConnectors::fetch_btcusd_quotes(
+    const std::unordered_map<std::string, double>& per_exchange_fee_bps,
+    double default_fee_bps) const
+{
+    auto fee = [&](const std::string& ex) {
+        auto it = per_exchange_fee_bps.find(ex);
+        return it != per_exchange_fee_bps.end() ? it->second : default_fee_bps;
+    };
+    std::vector<CryptoQuote> out;
+    try {
+        auto j = http_get("https://api.binance.com/api/v3/ticker/bookTicker?symbol=BTCUSDT");
+        if (auto r = parse_binance_book_ticker(j))
+            out.push_back({"BINANCE","BTCUSD",r->first,r->second,fee("BINANCE")});
+    } catch (...) {}
+    try {
+        auto j = http_get("https://api.kraken.com/0/public/Ticker?pair=XBTUSD");
+        if (auto r = parse_kraken_ticker(j))
+            out.push_back({"KRAKEN","BTCUSD",r->first,r->second,fee("KRAKEN")});
+    } catch (...) {}
+    try {
+        auto j = http_get("https://www.bitstamp.net/api/v2/ticker/btcusd/");
+        if (auto r = parse_bitstamp_ticker(j))
+            out.push_back({"BITSTAMP","BTCUSD",r->first,r->second,fee("BITSTAMP")});
+    } catch (...) {}
+    if (out.empty()) throw CsvError("All direct exchange fetches failed");
+    return out;
+}
+
+std::vector<CryptoQuote> MarketDataConnectors::fetch_tradingview_quotes(
+    const std::unordered_map<std::string, double>& per_exchange_fee_bps,
+    double default_fee_bps,
+    const std::vector<std::string>& requested_symbols,
+    const std::vector<std::string>& allowed_exchanges) const
+{
+    const std::string payload =
+        R"({"columns":["bid","ask","close"],"sort":{"sortBy":"name","sortOrder":"asc"},"range":[0,500]})";
+    std::vector<TradingViewRowCandidate> all_rows;
+    for (const auto& market : {"crypto","cfd","forex"}) {
+        try {
+            const std::string url = std::string(
+                "https://scanner.tradingview.com/") + market + "/scan";
+            auto rows = parse_tradingview_scan_rows(http_post(url, payload));
+            all_rows.insert(all_rows.end(), rows.begin(), rows.end());
+        } catch (...) {}
+    }
+    auto out = build_tradingview_quotes(all_rows, per_exchange_fee_bps,
+                                        default_fee_bps,
+                                        requested_symbols, allowed_exchanges);
+    if (out.empty())
+        throw CsvError("Failed to fetch TradingView quotes for requested symbols");
+    return out;
+}
+
+} // namespace am
