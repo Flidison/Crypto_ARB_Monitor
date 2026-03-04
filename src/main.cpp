@@ -10,6 +10,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <unordered_set>
 #include <vector>
 
@@ -19,7 +20,7 @@ static void print_usage() {
     std::cerr
         << "Usage: arbitrage_monitor <command> [options]\n"
         << "  run    [--config <path>]  Run once\n"
-        << "  watch  [--config <path>]  Run in loop\n"
+        << "  watch  [--config <path>]  [--interval-sec <n>]  Run in loop\n"
         << "  config [--config <path>]  Print config\n";
 }
 
@@ -87,13 +88,18 @@ int main(int argc, char* argv[]) {
     }
 
     std::string config_path = "config/app.conf";
-    for (int i = 2; i + 1 < argc; ++i)
-        if (std::string(argv[i]) == "--config") config_path = argv[i + 1];
+    int interval_override   = -1;
+    for (int i = 2; i + 1 < argc; ++i) {
+        if (std::string(argv[i]) == "--config")       config_path       = argv[i + 1];
+        if (std::string(argv[i]) == "--interval-sec") interval_override = std::stoi(argv[i + 1]);
+    }
 
     try {
         am::ConfigManager cfg_mgr(config_path);
         cfg_mgr.load();
         const auto ec = load_effective(cfg_mgr, config_path);
+        const int interval = (interval_override > 0) ? interval_override
+                                                      : ec.watch_interval_sec;
 
         if (cmd == "config") {
             std::cout
@@ -102,7 +108,7 @@ int main(int argc, char* argv[]) {
                 << "online_crypto_enabled="
                 << (ec.online_crypto_enabled ? "true" : "false")      << "\n"
                 << "crypto_online_source=" << ec.crypto_online_source << "\n"
-                << "watch_interval_sec="   << ec.watch_interval_sec   << "\n";
+                << "watch_interval_sec="   << interval                << "\n";
             return 0;
         }
 
@@ -110,34 +116,47 @@ int main(int argc, char* argv[]) {
         am::CryptoMonitorConfig ccfg;
         auto selected_symbols   = parse_csv_list(ec.crypto_symbols_csv);
         auto selected_exchanges = parse_csv_list(ec.crypto_exchanges_csv);
-        std::vector<am::CryptoQuote> quotes;
 
-        if (ec.online_crypto_enabled) {
-            am::MarketDataConnectors conn;
-            if (ec.crypto_online_source == "TRADINGVIEW")
-                quotes = conn.fetch_tradingview_quotes(
-                    {}, ec.crypto_default_fee_bps,
-                    selected_symbols, selected_exchanges);
-            else
-                quotes = conn.fetch_btcusd_quotes({}, ec.crypto_default_fee_bps);
+        auto execute_once = [&]() {
+            std::vector<am::CryptoQuote> quotes;
+            if (ec.online_crypto_enabled) {
+                am::MarketDataConnectors conn;
+                if (ec.crypto_online_source == "TRADINGVIEW")
+                    quotes = conn.fetch_tradingview_quotes(
+                        {}, ec.crypto_default_fee_bps,
+                        selected_symbols, selected_exchanges);
+                else
+                    quotes = conn.fetch_btcusd_quotes({}, ec.crypto_default_fee_bps);
+            } else {
+                quotes = engine.load_quotes_csv(
+                    ec.crypto_quotes_csv, {}, ec.crypto_default_fee_bps);
+            }
+            if (!selected_symbols.empty()) {
+                std::unordered_set<std::string> sym_set(
+                    selected_symbols.begin(), selected_symbols.end());
+                quotes.erase(std::remove_if(quotes.begin(), quotes.end(),
+                    [&](const am::CryptoQuote& q){ return !sym_set.count(q.symbol); }),
+                    quotes.end());
+            }
+            const auto ts   = utc_now_iso8601();
+            const auto opps = engine.find_opportunities(quotes, ccfg);
+            engine.write_opportunities_csv(ec.crypto_output_csv, ts, opps);
+            std::cout << "[" << ts << "] " << opps.size()
+                      << " opps -> " << ec.crypto_output_csv << "\n";
+        };
+
+        if (cmd == "run") {
+            execute_once();
         } else {
-            quotes = engine.load_quotes_csv(
-                ec.crypto_quotes_csv, {}, ec.crypto_default_fee_bps);
+            while (true) {
+                try { execute_once(); }
+                catch (const std::exception& e) {
+                    std::cerr << "Warning: " << e.what() << "\n";
+                }
+                std::this_thread::sleep_for(
+                    std::chrono::seconds(std::max(1, interval)));
+            }
         }
-
-        if (!selected_symbols.empty()) {
-            std::unordered_set<std::string> sym_set(
-                selected_symbols.begin(), selected_symbols.end());
-            quotes.erase(std::remove_if(quotes.begin(), quotes.end(),
-                [&](const am::CryptoQuote& q){ return !sym_set.count(q.symbol); }),
-                quotes.end());
-        }
-
-        const auto opps = engine.find_opportunities(quotes, ccfg);
-        engine.write_opportunities_csv(
-            ec.crypto_output_csv, utc_now_iso8601(), opps);
-        std::cout << "Wrote " << opps.size()
-                  << " opportunities -> " << ec.crypto_output_csv << "\n";
 
     } catch (const am::AmException& e) {
         std::cerr << "Error: " << e.what() << "\n"; return 1;
