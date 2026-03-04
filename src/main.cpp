@@ -54,12 +54,15 @@ static std::vector<std::string> parse_csv_list(const std::string& csv) {
 struct EffectiveConfig {
     std::string crypto_quotes_csv;
     std::string crypto_output_csv;
+    std::string crypto_profit_csv;
     bool        online_crypto_enabled  = false;
     std::string crypto_online_source   = "DIRECT";
     std::string crypto_symbols_csv;
     std::string crypto_exchanges_csv;
     int         watch_interval_sec     = 5;
     double      crypto_default_fee_bps = 10.0;
+    bool        profit_calc_enabled    = false;
+    double      start_capital          = 1000.0;
 };
 
 static EffectiveConfig load_effective(const am::IConfigManager& cfg,
@@ -68,16 +71,20 @@ static EffectiveConfig load_effective(const am::IConfigManager& cfg,
     auto s = [&](const std::string& k, const std::string& d){
         auto v = cfg.get_string(k); return v ? *v : d;
     };
-    ec.crypto_quotes_csv    = resolve_from_config(cfg_path,
+    ec.crypto_quotes_csv   = resolve_from_config(cfg_path,
         s("crypto_quotes_csv","fixture_crypto_quotes.csv"));
-    ec.crypto_output_csv    = resolve_from_config(cfg_path,
+    ec.crypto_output_csv   = resolve_from_config(cfg_path,
         s("crypto_output_csv","crypto_opportunities.csv"));
-    ec.crypto_online_source  = s("crypto_online_source","DIRECT");
-    ec.crypto_symbols_csv    = s("crypto_symbols","");
-    ec.crypto_exchanges_csv  = s("crypto_exchanges","");
+    ec.crypto_profit_csv   = resolve_from_config(cfg_path,
+        s("crypto_profit_csv","ingestion_report.csv"));
+    ec.crypto_online_source = s("crypto_online_source","DIRECT");
+    ec.crypto_symbols_csv   = s("crypto_symbols","");
+    ec.crypto_exchanges_csv = s("crypto_exchanges","");
     if (auto v = cfg.get_bool("online_crypto_enabled"))    ec.online_crypto_enabled  = *v;
+    if (auto v = cfg.get_bool("profit_calc_enabled"))      ec.profit_calc_enabled    = *v;
     if (auto v = cfg.get_double("watch_interval_sec"))     ec.watch_interval_sec     = (int)*v;
     if (auto v = cfg.get_double("crypto_default_fee_bps")) ec.crypto_default_fee_bps = *v;
+    if (auto v = cfg.get_double("start_capital"))          ec.start_capital          = *v;
     return ec;
 }
 
@@ -103,12 +110,14 @@ int main(int argc, char* argv[]) {
 
         if (cmd == "config") {
             std::cout
-                << "crypto_quotes_csv="    << ec.crypto_quotes_csv   << "\n"
-                << "crypto_output_csv="    << ec.crypto_output_csv   << "\n"
+                << "crypto_quotes_csv="    << ec.crypto_quotes_csv     << "\n"
+                << "crypto_output_csv="    << ec.crypto_output_csv     << "\n"
                 << "online_crypto_enabled="
-                << (ec.online_crypto_enabled ? "true" : "false")      << "\n"
-                << "crypto_online_source=" << ec.crypto_online_source << "\n"
-                << "watch_interval_sec="   << interval                << "\n";
+                << (ec.online_crypto_enabled ? "true" : "false")        << "\n"
+                << "crypto_online_source=" << ec.crypto_online_source   << "\n"
+                << "watch_interval_sec="   << interval                  << "\n"
+                << "profit_calc_enabled="
+                << (ec.profit_calc_enabled ? "true" : "false")          << "\n";
             return 0;
         }
 
@@ -116,6 +125,12 @@ int main(int argc, char* argv[]) {
         am::CryptoMonitorConfig ccfg;
         auto selected_symbols   = parse_csv_list(ec.crypto_symbols_csv);
         auto selected_exchanges = parse_csv_list(ec.crypto_exchanges_csv);
+        double rolling_capital  = ec.start_capital;
+
+        if (ec.profit_calc_enabled) {
+            engine.reset_opportunities_csv(ec.crypto_output_csv);
+            engine.reset_profit_csv(ec.crypto_profit_csv);
+        }
 
         auto execute_once = [&]() {
             std::vector<am::CryptoQuote> quotes;
@@ -140,9 +155,19 @@ int main(int argc, char* argv[]) {
             }
             const auto ts   = utc_now_iso8601();
             const auto opps = engine.find_opportunities(quotes, ccfg);
-            engine.write_opportunities_csv(ec.crypto_output_csv, ts, opps);
-            std::cout << "[" << ts << "] " << opps.size()
-                      << " opps -> " << ec.crypto_output_csv << "\n";
+
+            if (ec.profit_calc_enabled) {
+                engine.append_opportunities_csv(ec.crypto_output_csv, ts, opps);
+                const double before = rolling_capital;
+                rolling_capital = engine.append_profit_csv(
+                    ec.crypto_profit_csv, ts, rolling_capital, opps);
+                std::cout << "[" << ts << "] capital: "
+                          << before << " -> " << rolling_capital << "\n";
+            } else {
+                engine.write_opportunities_csv(ec.crypto_output_csv, ts, opps);
+                std::cout << "[" << ts << "] " << opps.size()
+                          << " opps -> " << ec.crypto_output_csv << "\n";
+            }
         };
 
         if (cmd == "run") {
