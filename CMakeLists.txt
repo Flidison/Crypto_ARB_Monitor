@@ -26,6 +26,7 @@ if(AM_BUILD_TESTS)
     add_executable(am_tests
         tests/test_config_manager.cpp
     tests/test_crypto_arbitrage.cpp
+    tests/test_online_connectors.cpp
     )
     target_link_libraries(am_tests PRIVATE am_core gtest_main)
     target_include_directories(am_tests PRIVATE include)
