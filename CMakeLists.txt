@@ -27,6 +27,7 @@ if(AM_BUILD_TESTS)
         tests/test_config_manager.cpp
     tests/test_crypto_arbitrage.cpp
     tests/test_online_connectors.cpp
+    tests/test_tradingview_quotes.cpp
     )
     target_link_libraries(am_tests PRIVATE am_core gtest_main)
     target_include_directories(am_tests PRIVATE include)
