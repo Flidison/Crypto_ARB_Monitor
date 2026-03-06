@@ -238,3 +238,23 @@ std::vector<CryptoQuote> MarketDataConnectors::fetch_tradingview_quotes(
 }
 
 } // namespace am
+
+namespace am {
+
+static bool symbol_page_confirms_requested_ticker(
+    const std::string& html,
+    const std::string& exchange,
+    const std::string& symbol)
+{
+    std::string upper_html = html;
+    std::transform(upper_html.begin(), upper_html.end(), upper_html.begin(),
+        [](unsigned char c){ return std::toupper(c); });
+    const std::string ex  = str::upper_trim_copy(exchange);
+    const std::string sym = str::upper_trim_copy(symbol);
+    const std::string plain   = ex + ":" + sym;
+    const std::string escaped = ex + "\\U003A" + sym;
+    return upper_html.find(plain)   != std::string::npos
+        || upper_html.find(escaped) != std::string::npos;
+}
+
+} // namespace am
