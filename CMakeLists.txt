@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.20)
 project(ArbitrageMonitor VERSION 1.0.0 LANGUAGES CXX)
 
+
+if(POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW)
+endif()
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
