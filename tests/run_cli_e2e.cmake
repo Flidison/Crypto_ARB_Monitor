@@ -21,7 +21,6 @@ file(WRITE "${CONFIG_FILE}"
 "crypto_quotes_csv = quotes.csv\n"
 "crypto_output_csv = opportunities.csv\n"
 "online_crypto_enabled = false\n"
-"crypto_symbols = XTZUSD\n"
 )
 
 execute_process(
