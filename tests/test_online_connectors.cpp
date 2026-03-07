@@ -51,3 +51,12 @@ TEST(OnlineConnectors, FetchBtcusdQuotesFromInjectedHttp) {
     EXPECT_FALSE(quotes.empty());
     EXPECT_EQ(quotes[0].exchange, "BINANCE");
 }
+
+TEST(OnlineConnectors, BuildTradingViewRejectsMismatchedVenue) {
+    std::vector<am::TradingViewRowCandidate> rows = {
+        {"OANDA", "BTCUSD", 65450.0, 65455.0, std::nullopt},
+    };
+    auto out = am::MarketDataConnectors::build_tradingview_quotes(
+        rows, {}, 10.0, {"BTCUSD"}, {"BINANCE", "KRAKEN"});
+    EXPECT_TRUE(out.empty());
+}
