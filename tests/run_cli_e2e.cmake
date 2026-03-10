@@ -1,55 +1,76 @@
-cmake_minimum_required(VERSION 3.20)
-
-if(NOT DEFINED MONITOR_BIN)
-    message(FATAL_ERROR "MONITOR_BIN not set")
+if(NOT DEFINED REPO_ROOT OR NOT DEFINED WORKDIR OR NOT DEFINED MONITOR_BIN)
+  message(FATAL_ERROR "REPO_ROOT, WORKDIR and MONITOR_BIN must be defined")
 endif()
 
-set(TMP_DIR "${CMAKE_CURRENT_BINARY_DIR}/e2e_tmp")
-file(MAKE_DIRECTORY "${TMP_DIR}")
+set(E2E_DIR "${WORKDIR}/cli_e2e")
+file(REMOVE_RECURSE "${E2E_DIR}")
+file(MAKE_DIRECTORY "${E2E_DIR}")
 
-# buy BINANCE ask=1000.00 fee=8bps  -> buy_cost=1000.80
-# sell KRAKEN bid=1010.00 fee=8bps  -> sell_gain=1009.19
-# net = +8.39 > 0  -> opportunity exists
-set(QUOTES_FILE "${TMP_DIR}/quotes.csv")
+set(QUOTES_FILE "${E2E_DIR}/quotes.csv")
+set(CONFIG_FILE "${E2E_DIR}/app.conf")
+set(OUT_FILE "${E2E_DIR}/crypto_opportunities.csv")
+
 file(WRITE "${QUOTES_FILE}"
-"exchange,symbol,bid,ask,fee_bps\n"
-"BINANCE,BTCUSD,999.00,1000.00,8.0\n"
-"KRAKEN,BTCUSD,1010.00,1011.00,8.0\n"
-"BITSTAMP,BTCUSD,1005.00,1006.00,10.0\n"
+  # Deterministic offline market snapshot with at least one profitable pair.
+  "exchange,symbol,bid,ask,fee_bps\n"
+  "BINANCE,XTZUSD,10.00,10.05,5\n"
+  "KRAKEN,XTZUSD,10.40,10.45,5\n"
+  "BITSTAMP,XTZUSD,10.20,10.25,5\n"
 )
 
-set(OUT_FILE    "${TMP_DIR}/opportunities.csv")
-set(CONFIG_FILE "${TMP_DIR}/app.conf")
 file(WRITE "${CONFIG_FILE}"
-"crypto_quotes_csv = quotes.csv\n"
-"crypto_output_csv = opportunities.csv\n"
-"online_crypto_enabled = false\n"
+  # Explicit test config so the E2E check does not depend on repository defaults.
+  "crypto_quotes_csv = quotes.csv\n"
+  "crypto_fees_csv =\n"
+  "crypto_output_csv = crypto_opportunities.csv\n"
+  "profit_output_csv = crypto_profit.csv\n"
+  "crypto_symbol = XTZUSD\n"
+  "crypto_symbols = XTZUSD\n"
+  "crypto_exchanges = BINANCE,KRAKEN,BITSTAMP\n"
+  "crypto_default_fee_bps = 10.0\n"
+  "crypto_min_net_spread = 0.0\n"
+  "crypto_min_net_pct = 0.0\n"
+  "crypto_online_source = TRADINGVIEW\n"
+  "online_crypto_enabled = false\n"
+  "watch_interval_sec = 1\n"
+  "profit_calc_enabled = false\n"
+  "start_capital = 1000\n"
 )
+
+file(REMOVE "${OUT_FILE}")
 
 execute_process(
-    COMMAND "${MONITOR_BIN}" run --config "${CONFIG_FILE}"
-    RESULT_VARIABLE ret
-    OUTPUT_VARIABLE out_stdout
-    ERROR_VARIABLE  out_stderr
+  COMMAND "${MONITOR_BIN}" run --config "${CONFIG_FILE}" --online-crypto false
+  WORKING_DIRECTORY "${E2E_DIR}"
+  RESULT_VARIABLE run_rc
+  OUTPUT_VARIABLE run_out
+  ERROR_VARIABLE run_err
 )
-if(NOT ret EQUAL 0)
-    message(FATAL_ERROR "CLI run failed: ${out_stderr}")
+if(NOT run_rc EQUAL 0)
+  message(FATAL_ERROR "CLI run failed: ${run_rc}\nSTDOUT:\n${run_out}\nSTDERR:\n${run_err}")
+endif()
+
+if(NOT EXISTS "${OUT_FILE}")
+  message(FATAL_ERROR "crypto_opportunities.csv was not produced")
 endif()
 
 file(READ "${OUT_FILE}" out_csv)
-string(FIND "${out_csv}" "observed_at,symbol,buy_exchange" has_header)
-if(has_header EQUAL -1)
-    message(FATAL_ERROR "Missing CSV header in output:\n${out_csv}")
+string(REGEX MATCHALL "[^\r\n]+" csv_lines "${out_csv}")
+list(LENGTH csv_lines csv_line_count)
+if(csv_line_count LESS 2)
+  message(FATAL_ERROR "Expected opportunities output to contain data rows, got:\n${out_csv}")
 endif()
 
-# Portable regex без {n} квантификаторов (совместимость с CMake < 3.9)
+string(REGEX MATCH "observed_at,symbol,buy_exchange,sell_exchange,buy_ask,sell_bid,gross_spread,net_spread,net_pct" has_header "${out_csv}")
+if(has_header STREQUAL "")
+  message(FATAL_ERROR "Opportunities output header is invalid:\n${out_csv}")
+endif()
+
+# CMake regex is more portable here without {n} quantifiers across versions.
 string(REGEX MATCH
-    "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z,BTCUSD,"
-    has_timestamp_and_symbol
-    "${out_csv}"
-)
-if(NOT has_timestamp_and_symbol)
-    message(FATAL_ERROR "No valid timestamp+symbol row in output:\n${out_csv}")
+  "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z,XTZUSD,"
+  has_timestamp_and_symbol
+  "${out_csv}")
+if(has_timestamp_and_symbol STREQUAL "")
+  message(FATAL_ERROR "Expected at least one XTZUSD row with non-empty UTC observed_at, got:\n${out_csv}")
 endif()
-
-message(STATUS "CLI e2e test PASSED")
