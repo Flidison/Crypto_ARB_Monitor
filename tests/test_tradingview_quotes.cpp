@@ -1,37 +1,63 @@
 #include <gtest/gtest.h>
+
+#include <optional>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+
 #include "online/MarketDataConnectors.h"
 
 TEST(TradingViewQuotes, PrefersRowsWithBidAskAndAppliesFeeMap) {
+    // If duplicate rows exist, merge logic should prefer the row with full bid/ask.
     std::vector<am::TradingViewRowCandidate> rows = {
-        {"BINANCE", "BTCUSD", 65450.0, 65455.0, 65452.0},
-        {"BINANCE", "BTCUSD", std::nullopt, std::nullopt, 65453.0},
+        {"BINANCE", "XTZUSD", std::nullopt, std::nullopt, 5.0},
+        {"BINANCE", "XTZUSD", 4.90, 5.10, 5.0},
+        {"KRAKEN", "XTZUSD", 5.00, 5.20, 5.1},
     };
-    std::unordered_map<std::string,double> fees = {{"BINANCE", 8.0}};
-    auto out = am::MarketDataConnectors::build_tradingview_quotes(
-        rows, fees, 10.0, {"BTCUSD"}, {"BINANCE"});
-    ASSERT_EQ(out.size(), 1u);
-    EXPECT_DOUBLE_EQ(out[0].bid, 65450.0);
-    EXPECT_DOUBLE_EQ(out[0].fee_bps, 8.0);
+
+    const std::unordered_map<std::string, double> fees = {
+        {"BINANCE", 7.5},
+    };
+
+    const auto quotes = am::MarketDataConnectors::build_tradingview_quotes(
+        rows, fees, 10.0, {"XTZUSD"}, {"BINANCE"});
+
+    ASSERT_EQ(quotes.size(), 1u);
+    EXPECT_EQ(quotes[0].exchange, "BINANCE");
+    EXPECT_EQ(quotes[0].symbol, "XTZUSD");
+    EXPECT_NEAR(quotes[0].bid, 4.90, 1e-12);
+    EXPECT_NEAR(quotes[0].ask, 5.10, 1e-12);
+    EXPECT_NEAR(quotes[0].fee_bps, 7.5, 1e-12);
 }
 
 TEST(TradingViewQuotes, FallsBackToCloseWhenBidAskMissing) {
+    // Close-only rows are accepted as synthetic bid/ask when scanner misses L1.
     std::vector<am::TradingViewRowCandidate> rows = {
-        {"KRAKEN", "BTCUSD", std::nullopt, std::nullopt, 65460.0},
+        {"KRAKEN", "APTUSD", std::nullopt, std::nullopt, 12.34},
     };
-    auto out = am::MarketDataConnectors::build_tradingview_quotes(
-        rows, {}, 10.0, {}, {});
-    ASSERT_EQ(out.size(), 1u);
-    EXPECT_DOUBLE_EQ(out[0].bid, 65460.0);
-    EXPECT_DOUBLE_EQ(out[0].ask, 65460.0);
+
+    const auto quotes = am::MarketDataConnectors::build_tradingview_quotes(
+        rows, {}, 10.0, {"APTUSD"}, {});
+
+    ASSERT_EQ(quotes.size(), 1u);
+    EXPECT_EQ(quotes[0].exchange, "KRAKEN");
+    EXPECT_EQ(quotes[0].symbol, "APTUSD");
+    EXPECT_NEAR(quotes[0].bid, 12.34, 1e-12);
+    EXPECT_NEAR(quotes[0].ask, 12.34, 1e-12);
+    EXPECT_NEAR(quotes[0].fee_bps, 10.0, 1e-12);
 }
 
 TEST(TradingViewQuotes, FiltersOutRowsOutsideRequestedSymbols) {
+    // Symbol filtering must be strict to avoid cross-symbol contamination.
     std::vector<am::TradingViewRowCandidate> rows = {
-        {"BINANCE", "ETHUSD", 3500.0, 3501.0, std::nullopt},
-        {"BINANCE", "BTCUSD", 65450.0, 65455.0, std::nullopt},
+        {"BINANCE", "XTZUSD", 4.90, 5.10, 5.0},
+        {"BINANCE", "ARBUSD", 1.00, 1.05, 1.02},
     };
-    auto out = am::MarketDataConnectors::build_tradingview_quotes(
-        rows, {}, 10.0, {"BTCUSD"}, {});
-    ASSERT_EQ(out.size(), 1u);
-    EXPECT_EQ(out[0].symbol, "BTCUSD");
+
+    const auto quotes = am::MarketDataConnectors::build_tradingview_quotes(
+        rows, {}, 10.0, {"ARBUSD"}, {});
+
+    ASSERT_EQ(quotes.size(), 1u);
+    EXPECT_EQ(quotes[0].symbol, "ARBUSD");
 }
