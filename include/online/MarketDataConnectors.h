@@ -1,82 +1,190 @@
+// ставим защиту от повторного подключения заголовка
 #pragma once
 
+// подтягиваем functional чтобы здесь были нужные типы и функции
 #include <functional>
+// подтягиваем optional чтобы здесь были нужные типы и функции
 #include <optional>
+// подтягиваем string чтобы здесь были нужные типы и функции
 #include <string>
+// подтягиваем unordered_map чтобы здесь были нужные типы и функции
 #include <unordered_map>
+// подтягиваем unordered_set чтобы здесь были нужные типы и функции
 #include <unordered_set>
+// подтягиваем vector чтобы здесь были нужные типы и функции
 #include <vector>
 
+// подтягиваем crypto/CryptoArbitrageEngine.h чтобы здесь были нужные типы и функции
 #include "crypto/CryptoArbitrageEngine.h"
 
+// заходим в пространство имен чтобы не засорять глобальную область
 namespace am {
 
-// Intermediate representation for partially available TradingView rows.
+// этим комментом помогаем быстрее считать логику глазами
+// этот struct TradingViewRowCandidate нужен чтобы держать рядом данные и связанную логику
+// внутри мы собираем единый контракт чтобы модуль было проще читать и расширять
+// тут просто продолжаем собирать итоговый результат
 struct TradingViewRowCandidate {
+// делаем небольшой шаг и готовим почву для следующих строк
     std::string exchange;
+// делаем небольшой шаг и готовим почву для следующих строк
     std::string symbol;
+// делаем небольшой шаг и готовим почву для следующих строк
     std::optional<double> bid;
+// делаем небольшой шаг и готовим почву для следующих строк
     std::optional<double> ask;
+// делаем небольшой шаг и готовим почву для следующих строк
     std::optional<double> close;
+// закрываем объявление типа и заканчиваем этот блок
 };
 
+// этот class IMarketDataConnectors нужен чтобы держать рядом данные и связанную логику
+// внутри мы собираем единый контракт чтобы модуль было проще читать и расширять
+// тут закрываем небольшой кусок общей задачи
 class IMarketDataConnectors {
+// тут лежит публичный интерфейс который видят снаружи
 public:
+// эта функция ~IMarketDataConnectors решает отдельную задачу внутри общего потока работы
+// по шагам берем вход, делаем проверки и отдаем ожидаемый результат наружу
+// сохраняем значение в переменную чтобы использовать дальше
     virtual ~IMarketDataConnectors() = default;
 
+// эта функция fetch_btcusd_quotes решает отдельную задачу внутри общего потока работы
+// по шагам берем вход, делаем проверки и отдаем ожидаемый результат наружу
+// тут делаем очередной рабочий шаг и двигаемся дальше
     virtual std::vector<CryptoQuote> fetch_btcusd_quotes(
+// фиксируем значение чтобы дальше случайно его не менять
         const std::unordered_map<std::string, double>& per_exchange_fee_bps,
+// сохраняем значение в переменную чтобы использовать дальше
         double default_fee_bps) const = 0;
+// эта функция fetch_tradingview_quotes решает отдельную задачу внутри общего потока работы
+// по шагам берем вход, делаем проверки и отдаем ожидаемый результат наружу
+// тут делаем очередной рабочий шаг и двигаемся дальше
     virtual std::vector<CryptoQuote> fetch_tradingview_quotes(
+// фиксируем значение чтобы дальше случайно его не менять
         const std::unordered_map<std::string, double>& per_exchange_fee_bps,
+// тут просто продолжаем собирать итоговый результат
         double default_fee_bps,
+// фиксируем значение чтобы дальше случайно его не менять
         const std::vector<std::string>& symbols,
+// фиксируем значение чтобы дальше случайно его не менять
         const std::unordered_set<std::string>& allowed_exchanges) const = 0;
+// закрываем объявление типа и заканчиваем этот блок
 };
 
+// этот class MarketDataConnectors нужен чтобы держать рядом данные и связанную логику
+// внутри мы собираем единый контракт чтобы модуль было проще читать и расширять
+// этот кусок нужен чтобы код шел по понятному сценарию
 class MarketDataConnectors final : public IMarketDataConnectors {
+// тут лежит публичный интерфейс который видят снаружи
 public:
+// эта функция string решает отдельную задачу внутри общего потока работы
+// по шагам берем вход, делаем проверки и отдаем ожидаемый результат наружу
+// даём удобное короткое имя для следующего кода
     using HttpGetFn = std::function<std::string(const std::string&)>;
+// эта функция string решает отдельную задачу внутри общего потока работы
+// по шагам берем вход, делаем проверки и отдаем ожидаемый результат наружу
+// даём удобное короткое имя для следующего кода
     using HttpPostJsonFn = std::function<std::string(const std::string&, const std::string&)>;
 
-    // Default constructor uses real HTTP via curl shell commands.
+    // тут коротко поясняем зачем нужен этот кусок
+// эта функция MarketDataConnectors решает отдельную задачу внутри общего потока работы
+// по шагам берем вход, делаем проверки и отдаем ожидаемый результат наружу
+// делаем небольшой шаг и готовим почву для следующих строк
     MarketDataConnectors();
-    // Test constructor: inject deterministic HTTP handlers (no real network required).
+    // этим комментом помогаем быстрее считать логику глазами
+// эта функция MarketDataConnectors решает отдельную задачу внутри общего потока работы
+// по шагам берем вход, делаем проверки и отдаем ожидаемый результат наружу
+// делаем небольшой шаг и готовим почву для следующих строк
     explicit MarketDataConnectors(HttpGetFn http_get_fn, HttpPostJsonFn http_post_json_fn);
 
-    // API payload parsers (unit-testable, no network).
+    // этим комментом помогаем быстрее считать логику глазами
+// эта функция parse_binance_book_ticker решает отдельную задачу внутри общего потока работы
+// по шагам берем вход, делаем проверки и отдаем ожидаемый результат наружу
+// делаем небольшой шаг и готовим почву для следующих строк
     static std::optional<std::pair<double, double>> parse_binance_book_ticker(const std::string& json);
+// эта функция parse_kraken_ticker решает отдельную задачу внутри общего потока работы
+// по шагам берем вход, делаем проверки и отдаем ожидаемый результат наружу
+// делаем небольшой шаг и готовим почву для следующих строк
     static std::optional<std::pair<double, double>> parse_kraken_ticker(const std::string& json);
+// эта функция parse_bitstamp_ticker решает отдельную задачу внутри общего потока работы
+// по шагам берем вход, делаем проверки и отдаем ожидаемый результат наружу
+// делаем небольшой шаг и готовим почву для следующих строк
     static std::optional<std::pair<double, double>> parse_bitstamp_ticker(const std::string& json);
 
-    // TradingView merge/fallback helper (unit-testable, no network).
+    // здесь оставляем понятную подсказку по текущему шагу
+// эта функция build_tradingview_quotes решает отдельную задачу внутри общего потока работы
+// по шагам берем вход, делаем проверки и отдаем ожидаемый результат наружу
+// этот кусок нужен чтобы код шел по понятному сценарию
     static std::vector<CryptoQuote> build_tradingview_quotes(
+// фиксируем значение чтобы дальше случайно его не менять
         const std::vector<TradingViewRowCandidate>& rows,
+// фиксируем значение чтобы дальше случайно его не менять
         const std::unordered_map<std::string, double>& per_exchange_fee_bps,
+// тут просто продолжаем собирать итоговый результат
         double default_fee_bps,
+// фиксируем значение чтобы дальше случайно его не менять
         const std::vector<std::string>& symbols,
+// фиксируем значение чтобы дальше случайно его не менять
         const std::unordered_set<std::string>& allowed_exchanges);
 
-    // Online fetchers.
+    // этим комментом помогаем быстрее считать логику глазами
+// эта функция fetch_btcusd_quotes решает отдельную задачу внутри общего потока работы
+// по шагам берем вход, делаем проверки и отдаем ожидаемый результат наружу
+// на этом месте держим логику прямой и читаемой
     std::vector<CryptoQuote> fetch_btcusd_quotes(
+// фиксируем значение чтобы дальше случайно его не менять
         const std::unordered_map<std::string, double>& per_exchange_fee_bps,
+// делаем небольшой шаг и готовим почву для следующих строк
         double default_fee_bps) const override;
+// эта функция fetch_tradingview_quotes решает отдельную задачу внутри общего потока работы
+// по шагам берем вход, делаем проверки и отдаем ожидаемый результат наружу
+// на этом месте держим логику прямой и читаемой
     std::vector<CryptoQuote> fetch_tradingview_quotes(
+// фиксируем значение чтобы дальше случайно его не менять
         const std::unordered_map<std::string, double>& per_exchange_fee_bps,
+// здесь аккуратно готовим данные для следующего шага
         double default_fee_bps,
+// фиксируем значение чтобы дальше случайно его не менять
         const std::vector<std::string>& symbols,
+// фиксируем значение чтобы дальше случайно его не менять
         const std::unordered_set<std::string>& allowed_exchanges) const override;
 
+// здесь прячем внутренние детали чтобы не трогать их снаружи
 private:
+// эта функция shell_escape_single_quotes решает отдельную задачу внутри общего потока работы
+// по шагам берем вход, делаем проверки и отдаем ожидаемый результат наружу
+// делаем небольшой шаг и готовим почву для следующих строк
     static std::string shell_escape_single_quotes(const std::string& s);
+// эта функция extract_json_number_field решает отдельную задачу внутри общего потока работы
+// по шагам берем вход, делаем проверки и отдаем ожидаемый результат наружу
+// делаем небольшой шаг и готовим почву для следующих строк
     static std::optional<double> extract_json_number_field(const std::string& json, const std::string& field);
+// эта функция curl_http_post_json решает отдельную задачу внутри общего потока работы
+// по шагам берем вход, делаем проверки и отдаем ожидаемый результат наружу
+// делаем небольшой шаг и готовим почву для следующих строк
     static std::string curl_http_post_json(const std::string& url, const std::string& json_body);
+// эта функция curl_http_get решает отдельную задачу внутри общего потока работы
+// по шагам берем вход, делаем проверки и отдаем ожидаемый результат наружу
+// делаем небольшой шаг и готовим почву для следующих строк
     static std::string curl_http_get(const std::string& url);
+// эта функция http_post_json решает отдельную задачу внутри общего потока работы
+// по шагам берем вход, делаем проверки и отдаем ожидаемый результат наружу
+// делаем небольшой шаг и готовим почву для следующих строк
     std::string http_post_json(const std::string& url, const std::string& json_body) const;
+// эта функция http_get решает отдельную задачу внутри общего потока работы
+// по шагам берем вход, делаем проверки и отдаем ожидаемый результат наружу
+// делаем небольшой шаг и готовим почву для следующих строк
     std::string http_get(const std::string& url) const;
 
+// делаем небольшой шаг и готовим почву для следующих строк
     HttpGetFn http_get_fn_;
+// делаем небольшой шаг и готовим почву для следующих строк
     HttpPostJsonFn http_post_json_fn_;
+// закрываем объявление типа и заканчиваем этот блок
 };
 
-} // namespace am
+// этой строкой фиксируем промежуточный результат
+} // закрываем пространство имен am
+
+
