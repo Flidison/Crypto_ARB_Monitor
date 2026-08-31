@@ -172,6 +172,14 @@ GitHub Actions uses the same Ninja configure, build, and CTest sequence on Ubunt
 - [Input, output, and calculation contract](docs/data_contract.md)
 - [C++23 rationale](docs/cpp23_rationale.md)
 
+## Contributors
+
+- **Gareev Amirkhan ([Flidison](https://github.com/Flidison))** — CMake and project setup, configuration and arbitrage-engine work, calculations and CSV reporting, automated tests, documentation, and repository maintenance.
+- **Ryadinskiy Konstantin** — CLI orchestration, `run`/`watch`/`config` modes, path resolution, runtime source selection, profit-flow integration, CLI tests, and supporting documentation.
+- **Timur Rozovel** — online market-data connectors for Binance, Kraken, Bitstamp, and TradingView; HTTP transport, response parsing, fallback behavior, and related tests and fixtures.
+
+Responsibilities are summarized from the repository's [commit history](https://github.com/Flidison/Crypto_ARB_Monitor/commits/main/) and [contributor graph](https://github.com/Flidison/Crypto_ARB_Monitor/graphs/contributors).
+
 ## Limitations
 
 - The monitor does not execute trades, manage exchange accounts, or transfer funds.
