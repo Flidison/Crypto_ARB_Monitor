@@ -1,6 +1,31 @@
+# CMake and build output
 build/
 cmake-build-*/
 CMakeFiles/
 Testing/
+_deps/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+build.ninja
+.ninja_deps
+.ninja_log
+
+# Compiled artifacts
 *.o
+*.obj
 *.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+
+# IDE and operating-system files
+.idea/
+.vscode/
+.DS_Store
+
+# Runtime reports
+crypto_opportunities.csv
+crypto_profit.csv
