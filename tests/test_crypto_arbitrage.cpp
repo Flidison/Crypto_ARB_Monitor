@@ -11,7 +11,6 @@
 
 namespace {
 
-// Local file helpers keep tests independent from repository fixtures.
 std::string write_temp_csv(const std::string& name, const std::string& body) {
     const std::string path = "tmp_" + name + ".csv";
     std::ofstream out(path, std::ios::binary);
@@ -30,7 +29,6 @@ std::string read_file(const std::string& path) {
 } // namespace
 
 TEST(CryptoArbitrage, FindsNetPositiveOpportunityAfterFees) {
-    // Baseline scenario where spread remains positive after fee adjustment.
     const std::string qpath = write_temp_csv(
         "crypto_quotes_good",
         "exchange,symbol,bid,ask,fee_bps\n"
@@ -52,7 +50,6 @@ TEST(CryptoArbitrage, FindsNetPositiveOpportunityAfterFees) {
 }
 
 TEST(CryptoArbitrage, HighFeesRemoveFakeOpportunity) {
-    // Regression guard: gross spread alone must not create an opportunity.
     const std::string qpath = write_temp_csv(
         "crypto_quotes_bad",
         "exchange,symbol,bid,ask,fee_bps\n"
@@ -71,7 +68,6 @@ TEST(CryptoArbitrage, HighFeesRemoveFakeOpportunity) {
 }
 
 TEST(CryptoArbitrage, DoesNotMixDifferentSymbols) {
-    // Business invariant: buy/sell legs must be for the same symbol.
     const std::string qpath = write_temp_csv(
         "crypto_quotes_multi_symbol",
         "exchange,symbol,bid,ask,fee_bps\n"
@@ -90,7 +86,6 @@ TEST(CryptoArbitrage, DoesNotMixDifferentSymbols) {
 }
 
 TEST(CryptoArbitrage, ProfitTrackingUsesBestNetPct) {
-    // Profit mode chooses the highest net_pct and compounds capital in caller loop.
     const std::string ppath = write_temp_csv("profit_tracking", "");
     am::CryptoArbitrageEngine engine;
     engine.reset_profit_csv(ppath);
@@ -122,7 +117,6 @@ TEST(CryptoArbitrage, ProfitTrackingKeepsCapitalWhenNoOpportunities) {
 }
 
 TEST(CryptoArbitrage, WriteOpportunitiesCsvRequiresValidObservedAt) {
-    // Contract guard for observed_at: no empty or malformed timestamp rows.
     const std::string path = write_temp_csv("opps_with_timestamp", "");
     am::CryptoArbitrageEngine engine;
     std::vector<am::CryptoOpportunity> opps = {

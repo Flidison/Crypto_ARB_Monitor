@@ -4,7 +4,6 @@
 
 namespace am {
 
-// Domain exception hierarchy keeps CLI error handling explicit and readable.
 class AmException : public std::runtime_error {
 public:
     explicit AmException(const std::string& msg) : std::runtime_error(msg) {}

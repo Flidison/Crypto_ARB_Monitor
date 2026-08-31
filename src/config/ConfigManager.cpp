@@ -10,14 +10,12 @@ namespace am {
 ConfigManager::ConfigManager(std::string path) : path_(std::move(path)) {}
 
 void ConfigManager::load() {
-    // Fail fast with a domain-specific exception so CLI can return stable error codes.
     std::ifstream in(path_);
     if (!in) throw ConfigError("Cannot open: " + path_);
 
     kv_.clear();
     std::string line;
     while (std::getline(in, line)) {
-        // Accept relaxed config style: whitespace and comments are ignored.
         line = str::trim_copy(line);
         if (line.empty() || line[0] == '#') continue;
 
@@ -42,7 +40,6 @@ std::optional<double> ConfigManager::get_double(const std::string& key) const {
     try {
         return std::stod(*s);
     } catch (...) {
-        // Typed access is strict: malformed values are configuration errors.
         throw ConfigError("Bad double for key: " + key);
     }
 }

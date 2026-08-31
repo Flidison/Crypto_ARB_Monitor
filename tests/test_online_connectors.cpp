@@ -35,7 +35,6 @@ TEST(OnlineConnectors, ParsesBitstampTicker) {
 }
 
 TEST(OnlineConnectors, FetchBtcusdQuotesFromInjectedHttp) {
-    // Integration-level fetch test without real network: URLs are served by lambdas.
     am::MarketDataConnectors c(
         [](const std::string& url) -> std::string {
             if (url.find("binance") != std::string::npos) {
@@ -67,7 +66,6 @@ TEST(OnlineConnectors, FetchBtcusdQuotesFromInjectedHttp) {
 }
 
 TEST(OnlineConnectors, FetchTradingViewQuotesFromScannerRows) {
-    // Scanner path should build normalized quotes and apply fee fallback.
     am::MarketDataConnectors c(
         [](const std::string&) -> std::string {
             throw am::CsvError("GET fallback should not be called in this test");
@@ -93,7 +91,6 @@ TEST(OnlineConnectors, FetchTradingViewQuotesFromScannerRows) {
 }
 
 TEST(OnlineConnectors, FetchTradingViewQuotesFallsBackToSymbolPage) {
-    // If scanner returns no rows, symbol page fallback should still produce quotes.
     am::MarketDataConnectors c(
         [](const std::string& url) -> std::string {
             if (url.find("symbols/XTZUSD") != std::string::npos) {
@@ -114,7 +111,6 @@ TEST(OnlineConnectors, FetchTradingViewQuotesFallsBackToSymbolPage) {
 }
 
 TEST(OnlineConnectors, FetchTradingViewFallbackRejectsMismatchedTicker) {
-    // A fallback page can contain price text but refer to a different venue symbol.
     am::MarketDataConnectors c(
         [](const std::string& url) -> std::string {
             if (url.find("symbols/ARBUSD") != std::string::npos) {
@@ -132,7 +128,6 @@ TEST(OnlineConnectors, FetchTradingViewFallbackRejectsMismatchedTicker) {
 }
 
 TEST(OnlineConnectors, FetchTradingViewQuotesThrowsWhenAllSourcesFail) {
-    // Error contract: if both scanner and page fallback fail, method throws CsvError.
     am::MarketDataConnectors c(
         [](const std::string&) -> std::string { throw am::CsvError("get failed"); },
         [](const std::string&, const std::string&) -> std::string { throw am::CsvError("post failed"); });

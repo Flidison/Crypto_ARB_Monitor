@@ -20,7 +20,7 @@ namespace {
 constexpr double kBpsDenominator = 10000.0;
 
 static bool is_utc_iso8601_timestamp(const std::string& ts) {
-    // Expected format: YYYY-MM-DDTHH:MM:SSZ (20 chars).
+    // Report contract uses the fixed-width UTC form YYYY-MM-DDTHH:MM:SSZ.
     if (ts.size() != 20) return false;
     const auto is_digit_at = [&](size_t i) {
         return std::isdigit(static_cast<unsigned char>(ts[i])) != 0;
@@ -267,7 +267,6 @@ void CryptoArbitrageEngine::append_opportunities_csv(
 
     std::ofstream out(path, std::ios::app);
     if (!out) throw CsvError("Cannot append crypto opportunities report: " + path);
-    // Contract guard: each written row must have UTC timestamp in observed_at.
     if (!opps.empty() && !is_utc_iso8601_timestamp(observed_at)) {
         throw DataValidationError("observed_at must be UTC ISO 8601: YYYY-MM-DDTHH:MM:SSZ");
     }

@@ -10,7 +10,6 @@
 
 namespace {
 
-// Per-test temp file helpers keep tests isolated and parallel-safe.
 std::string make_temp_config_path(const std::string& test_name) {
     const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
     const auto path = std::filesystem::temp_directory_path() /
@@ -29,7 +28,6 @@ std::string write_temp_config(const std::string& test_name, const std::string& b
 } // namespace
 
 TEST(ConfigManager, LoadsAndTrimsValues) {
-    // Happy-path config parsing with comments/whitespace.
     const std::string path = write_temp_config(
         "loads_and_trims",
         "# comment\n"
@@ -51,7 +49,6 @@ TEST(ConfigManager, LoadsAndTrimsValues) {
 }
 
 TEST(ConfigManager, ThrowsOnBadDouble) {
-    // Type conversion errors are surfaced as ConfigError, not silently ignored.
     const std::string path = write_temp_config("bad_double", "fee_bps = nope\n");
     am::ConfigManager cfg(path);
     cfg.load();
@@ -70,7 +67,6 @@ TEST(ConfigManager, ThrowsOnBadBool) {
 }
 
 TEST(ConfigManager, ThrowsWhenFileMissing) {
-    // Missing files must fail fast to avoid running with accidental defaults.
     const std::string path = make_temp_config_path("missing");
     am::ConfigManager cfg(path);
     EXPECT_THROW(cfg.load(), am::ConfigError);

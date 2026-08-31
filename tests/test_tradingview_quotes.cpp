@@ -9,7 +9,6 @@
 #include "online/MarketDataConnectors.h"
 
 TEST(TradingViewQuotes, PrefersRowsWithBidAskAndAppliesFeeMap) {
-    // If duplicate rows exist, merge logic should prefer the row with full bid/ask.
     std::vector<am::TradingViewRowCandidate> rows = {
         {"BINANCE", "XTZUSD", std::nullopt, std::nullopt, 5.0},
         {"BINANCE", "XTZUSD", 4.90, 5.10, 5.0},
@@ -32,7 +31,6 @@ TEST(TradingViewQuotes, PrefersRowsWithBidAskAndAppliesFeeMap) {
 }
 
 TEST(TradingViewQuotes, FallsBackToCloseWhenBidAskMissing) {
-    // Close-only rows are accepted as synthetic bid/ask when scanner misses L1.
     std::vector<am::TradingViewRowCandidate> rows = {
         {"KRAKEN", "APTUSD", std::nullopt, std::nullopt, 12.34},
     };
@@ -49,7 +47,6 @@ TEST(TradingViewQuotes, FallsBackToCloseWhenBidAskMissing) {
 }
 
 TEST(TradingViewQuotes, FiltersOutRowsOutsideRequestedSymbols) {
-    // Symbol filtering must be strict to avoid cross-symbol contamination.
     std::vector<am::TradingViewRowCandidate> rows = {
         {"BINANCE", "XTZUSD", 4.90, 5.10, 5.0},
         {"BINANCE", "ARBUSD", 1.00, 1.05, 1.02},

@@ -121,7 +121,7 @@ static std::string unquote_json_token(const std::string& token) {
 }
 
 static std::vector<TradingViewRowCandidate> parse_tradingview_scan_rows(const std::string& json) {
-    // Lightweight scanner parser: robust enough for expected payload shape without external JSON deps.
+    // The scanner parser intentionally handles only "s" and "d[2..4]" to avoid a JSON dependency.
     std::vector<TradingViewRowCandidate> rows;
     size_t pos = 0;
     while (true) {
@@ -222,7 +222,7 @@ static bool symbol_page_confirms_requested_ticker(
     const std::string plain = ex + ":" + sym;
     if (upper_html.find(plain) != std::string::npos) return true;
 
-    // Some pages embed symbol ids with escaped colon (e.g. BINANCE\u003AXTZUSD).
+    // TradingView may encode ':' as \u003A in embedded symbol identifiers.
     const std::string escaped = ex + "\\U003A" + sym;
     return upper_html.find(escaped) != std::string::npos;
 }
@@ -237,7 +237,7 @@ public:
     FILE* get() const { return pipe_.get(); }
 
     int close() {
-        // release() avoids double-close because unique_ptr deleter won't run after release.
+        // release() prevents the unique_ptr deleter from calling pclose a second time.
         FILE* raw = pipe_.release();
         if (!raw) return 0;
         return ::pclose(raw);
@@ -398,7 +398,7 @@ std::string MarketDataConnectors::curl_http_get(const std::string& url) {
     const int rc = pipe.close();
     if (rc != 0 || out.empty()) throw CsvError("HTTP GET failed for url: " + url);
 
-    // Curl appends a status marker so we can report HTTP-level errors with body snippet.
+    // curl's process status does not expose HTTP failures, so append a response-code marker.
     const std::string marker = "__HTTP_STATUS__:";
     const size_t m = out.rfind(marker);
     if (m == std::string::npos) {
@@ -472,7 +472,7 @@ std::vector<CryptoQuote> MarketDataConnectors::fetch_btcusd_quotes(
 
     std::vector<CryptoQuote> out;
 
-    // Each venue is best-effort; we only fail if all venues fail.
+    // Direct venues are best-effort; the request fails only if none returns a usable quote.
     try {
         const auto json = http_get("https://api.binance.com/api/v3/ticker/bookTicker?symbol=BTCUSDT");
         const auto ba = parse_binance_book_ticker(json);
@@ -551,7 +551,7 @@ std::vector<CryptoQuote> MarketDataConnectors::fetch_tradingview_quotes(
         return parse_tradingview_scan_rows(json);
     };
 
-    // Scanner calls are parallelized because they are independent and network-bound.
+    // TradingView classifies requested tickers across independent scanner markets.
     auto f_crypto = std::async(std::launch::async, [&]() { return fetch_market("crypto"); });
     auto f_cfd = std::async(std::launch::async, [&]() { return fetch_market("cfd"); });
     auto f_forex = std::async(std::launch::async, [&]() { return fetch_market("forex"); });
@@ -578,7 +578,7 @@ std::vector<CryptoQuote> MarketDataConnectors::fetch_tradingview_quotes(
         if (has_bid_ask || has_close) covered_keys.insert(key);
     }
 
-    // Best-effort fallback: parse symbol pages when scanner doesn't return a quote.
+    // Scanner gaps fall back to verified symbol pages, which provide close-only quotes.
     for (const auto& kv : key_to_pair) {
         const std::string& key = kv.first;
         const std::string& ex = kv.second.first;

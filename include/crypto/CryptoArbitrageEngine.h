@@ -8,7 +8,6 @@
 
 namespace am {
 
-// Normalized quote after ingestion (offline CSV or online providers).
 struct CryptoQuote {
     std::string exchange;
     std::string symbol;
@@ -51,7 +50,6 @@ public:
         const std::vector<CryptoQuote>& quotes,
         const CryptoMonitorConfig& cfg) const = 0;
 
-    // Report API: reset once, then append iteration rows with explicit UTC observation time.
     virtual void reset_opportunities_csv(const std::string& path) const = 0;
     virtual void append_opportunities_csv(
         const std::string& path,

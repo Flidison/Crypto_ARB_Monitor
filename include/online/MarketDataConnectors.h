@@ -11,7 +11,6 @@
 
 namespace am {
 
-// Intermediate representation for partially available TradingView rows.
 struct TradingViewRowCandidate {
     std::string exchange;
     std::string symbol;
@@ -39,17 +38,13 @@ public:
     using HttpGetFn = std::function<std::string(const std::string&)>;
     using HttpPostJsonFn = std::function<std::string(const std::string&, const std::string&)>;
 
-    // Default constructor uses real HTTP via curl shell commands.
     MarketDataConnectors();
-    // Test constructor: inject deterministic HTTP handlers (no real network required).
     explicit MarketDataConnectors(HttpGetFn http_get_fn, HttpPostJsonFn http_post_json_fn);
 
-    // API payload parsers (unit-testable, no network).
     static std::optional<std::pair<double, double>> parse_binance_book_ticker(const std::string& json);
     static std::optional<std::pair<double, double>> parse_kraken_ticker(const std::string& json);
     static std::optional<std::pair<double, double>> parse_bitstamp_ticker(const std::string& json);
 
-    // TradingView merge/fallback helper (unit-testable, no network).
     static std::vector<CryptoQuote> build_tradingview_quotes(
         const std::vector<TradingViewRowCandidate>& rows,
         const std::unordered_map<std::string, double>& per_exchange_fee_bps,
@@ -57,7 +52,6 @@ public:
         const std::vector<std::string>& symbols,
         const std::unordered_set<std::string>& allowed_exchanges);
 
-    // Online fetchers.
     std::vector<CryptoQuote> fetch_btcusd_quotes(
         const std::unordered_map<std::string, double>& per_exchange_fee_bps,
         double default_fee_bps) const override;

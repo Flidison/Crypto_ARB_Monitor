@@ -5,7 +5,6 @@
 
 namespace am {
 
-// Config contract: tiny key=value reader with typed accessors and explicit missing-value handling.
 class IConfigManager {
 public:
     virtual ~IConfigManager() = default;
@@ -19,7 +18,6 @@ public:
 
 class ConfigManager final : public IConfigManager {
 public:
-    // Path is stored as provided; relative resolution is done by the caller layer.
     explicit ConfigManager(std::string path);
 
     void load() override;

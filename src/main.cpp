@@ -46,7 +46,7 @@ struct EffectiveConfig {
 
 constexpr std::string_view kTradingViewSource = "TRADINGVIEW";
 
-// Runtime source mode is explicit and type-safe via variant dispatch.
+// Variant enforces exhaustive handling of offline/scanner/direct quote modes in std::visit.
 struct OfflineQuotesSource {};
 struct TradingViewQuotesSource {};
 struct DirectExchangeQuotesSource {};
@@ -170,7 +170,7 @@ int main(int argc, char** argv) {
         std::optional<bool> no_fixtures_override;
         std::optional<double> start_capital_override;
 
-        // CLI parsing is strict to avoid silent typos in automation scripts.
+        // Unknown options are rejected so automation/CI fails fast on typos.
         for (int i = 2; i < argc; ++i) {
             const std::string arg = argv[i];
             if (arg == "--config" && i + 1 < argc) {
@@ -250,7 +250,7 @@ int main(int argc, char** argv) {
             }
         }
 
-        // Single iteration unit used by both `run` and `watch`.
+        // Shared iteration body keeps run/watch behavior identical for fetch/filter/report stages.
         auto execute_once = [&]() {
             const auto fees_map = engine->load_fees_csv(ec.crypto_fees_csv);
             auto selected_symbols = parse_csv_list(ec.crypto_symbols_csv);
@@ -315,7 +315,7 @@ int main(int argc, char** argv) {
                       << ". Appended report: " << ec.crypto_output_csv << "\n";
         };
 
-        // Watch mode is intentionally resilient: one failed iteration does not terminate the loop.
+        // Keep watcher alive on transient pull/parse failures; only current iteration is skipped.
         if (cmd == "watch") {
             while (true) {
                 try {
