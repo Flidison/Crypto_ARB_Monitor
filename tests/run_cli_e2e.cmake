@@ -11,7 +11,6 @@ set(CONFIG_FILE "${E2E_DIR}/app.conf")
 set(OUT_FILE "${E2E_DIR}/crypto_opportunities.csv")
 
 file(WRITE "${QUOTES_FILE}"
-  # Deterministic offline market snapshot with at least one profitable pair.
   "exchange,symbol,bid,ask,fee_bps\n"
   "BINANCE,XTZUSD,10.00,10.05,5\n"
   "KRAKEN,XTZUSD,10.40,10.45,5\n"
@@ -19,7 +18,6 @@ file(WRITE "${QUOTES_FILE}"
 )
 
 file(WRITE "${CONFIG_FILE}"
-  # Explicit test config so the E2E check does not depend on repository defaults.
   "crypto_quotes_csv = quotes.csv\n"
   "crypto_fees_csv =\n"
   "crypto_output_csv = crypto_opportunities.csv\n"
@@ -66,7 +64,7 @@ if(has_header STREQUAL "")
   message(FATAL_ERROR "Opportunities output header is invalid:\n${out_csv}")
 endif()
 
-# CMake regex is more portable here without {n} quantifiers across versions.
+# Avoid {n} quantifiers because older CMake regex engines handle them inconsistently.
 string(REGEX MATCH
   "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z,XTZUSD,"
   has_timestamp_and_symbol

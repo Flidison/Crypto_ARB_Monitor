@@ -3,7 +3,7 @@ if(NOT DEFINED REPO_ROOT OR NOT DEFINED WORKDIR OR NOT DEFINED MONITOR_BIN)
 endif()
 
 function(assert_output_contains_path output prefix expected_path)
-  # Path checks accept native and slash-normalized forms for cross-platform stability.
+  # Accept native and slash-normalized paths so assertions pass on Windows/macOS/Linux outputs.
   string(REPLACE "\\" "/" expected_unix "${expected_path}")
   string(REPLACE "/" "\\" expected_win "${expected_unix}")
 

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(ArbitrageMonitor VERSION 1.0.0 LANGUAGES CXX)
 
-# Silence FetchContent timestamp warning on newer CMake and ensure robust rebuilds.
+# CMP0135 NEW makes FetchContent archive timestamps consistent and avoids stale rebuild behavior.
 if(POLICY CMP0135)
     cmake_policy(SET CMP0135 NEW)
 endif()
@@ -12,11 +12,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(AM_BUILD_TESTS "Build tests" ON)
 
-# Core library with reusable domain/runtime logic.
 add_library(am_core
-    src/ConfigManager.cpp
-    src/CryptoArbitrageEngine.cpp
-    src/MarketDataConnectors.cpp
+    src/config/ConfigManager.cpp
+    src/crypto/CryptoArbitrageEngine.cpp
+    src/online/MarketDataConnectors.cpp
 )
 
 target_include_directories(am_core PUBLIC
@@ -35,7 +34,6 @@ add_executable(arbitrage_monitor src/main.cpp)
 target_link_libraries(arbitrage_monitor PRIVATE am_core)
 
 if (AM_BUILD_TESTS)
-    # Fetch official GoogleTest and wire both unit and CLI integration checks.
     add_subdirectory(external/googletest)
     enable_testing()
 
