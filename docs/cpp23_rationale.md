@@ -1,38 +1,29 @@
-# C++23 Feature Rationale
+# C++23 Rationale
 
-This document explains why each required language/library feature is used in the project.
+The project deliberately configures `CMAKE_CXX_STANDARD` as `23` and disables compiler-specific language extensions.
 
-## `std::unique_ptr`
-- Used for short-lived, exclusive ownership of online connector instances in the runtime path.
-- Why: ownership is single and explicit, no accidental copies.
-- Location: `src/main.cpp` (`std::unique_ptr<am::IMarketDataConnectors>`).
+## Required C++23 Library Feature
 
-## `std::shared_ptr`
-- Used for shared lifetime of the arbitrage engine across runtime lambdas.
-- Why: avoids dangling references when lambdas capture engine and makes lifetime explicit.
-- Location: `src/main.cpp` (`std::shared_ptr<am::IArbitrageEngine>`).
+`src/main.cpp` uses `std::string::contains` while classifying fixture and test paths. This member function was added in C++23 and is the direct reason the current source requires a C++23-capable standard library.
 
-## `std::optional`
-- Used for config values, parser outputs, and nullable fields from online feeds.
-- Why: distinguishes "missing value" from default primitive values without sentinel hacks.
-- Locations: `include/config/ConfigManager.h`, `include/online/MarketDataConnectors.h`, parsing code in `src/MarketDataConnectors.cpp`.
+The same checks could be expressed with `find` if the project later needed an older language target, but changing the advertised standard is outside the current maintenance scope.
 
-## `std::variant` + `std::visit`
-- Used to model mutually exclusive quote-source modes (`offline`, `tradingview`, `direct-api`).
-- Why: type-safe dispatch without manual enum-switch + casts, and exhaustive compile-time handling.
-- Location: `src/main.cpp` (`QuotesSource`, `detect_quotes_source`, `std::visit` in `execute_once`).
+## Other Modern C++ Usage
 
-## RAII
-- Used for file streams, process pipes, and resource cleanup through object lifetime.
-- Why: deterministic cleanup even on exceptions.
-- Locations: `std::ifstream/std::ofstream` throughout core; `PipeReader` in `src/MarketDataConnectors.cpp`.
+The codebase also uses features introduced before C++23:
 
-## `constexpr`
-- Used for immutable compile-time constants.
-- Why: intent clarity and compile-time guarantees.
-- Locations: `src/CryptoArbitrageEngine.cpp` (`kBpsDenominator`), `src/main.cpp` (`kTradingViewSource`).
+- `std::optional` represents missing configuration values, parser results, and nullable online fields without sentinel values.
+- `std::variant` and `std::visit` model the mutually exclusive offline, TradingView, and direct-API quote sources.
+- `std::unique_ptr` owns runtime interfaces with a single owner; `std::shared_ptr` keeps the arbitrage engine alive across the captured iteration callable.
+- Structured bindings simplify iteration over normalized quote maps.
+- `constexpr` names the basis-point denominator and TradingView source identifier.
+- RAII manages file streams and the `PipeReader` process handle, including exception paths.
 
-## Exceptions
-- Used for configuration, CSV/data validation, and transport errors.
-- Why: simplifies error propagation from deep parsing/networking layers to CLI boundary.
-- Locations: `include/exceptions/Exceptions.h`, throw sites in `src/*.cpp`, centralized handling in `main`.
+These are design choices rather than additional reasons to require the C++23 language level.
+
+## Relevant Locations
+
+- Runtime dispatch and `std::string::contains`: `src/main.cpp`
+- Quote parsing and process RAII: `src/online/MarketDataConnectors.cpp`
+- Fee calculation constant: `src/crypto/CryptoArbitrageEngine.cpp`
+- Optional-bearing interfaces: `include/config/ConfigManager.h` and `include/online/MarketDataConnectors.h`
